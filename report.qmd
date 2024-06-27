@@ -1,0 +1,1391 @@
+---
+title: "GIANT CUTTLEFISH REPORT"
+author: "TIDDAS - Pei Ni Lim AND Yuwei Jiang (Part 1), Alexandra Goh, Yingying Zhang, Shabarish Sai Subramanian (Part 2)"
+format: html
+execute: 
+  warning: false
+  message: false
+bibliography: references.bib
+csl: apa.csl
+---
+
+## Introduction
+
+<!-- 
+1. For your assigned Australian wild thing, read all you can about it, and write a paragraph describing it's key features, such as it's habitat, usual active time, whether numbers are increasing or declining, and even things like, if it is common for tourists to travel to see them, or there are special spotting promotions occurring as is happening [this month for the platypus](https://platypus.asn.au/report-a-sighting/). The write five unique expectations on what you might find when you explore the data, for example: 
+<br><br>"We expect to see the occurrences only in the summer months."
+<br>"We expect to find the most occurrences near the coast."
+<br>"We expect to observe declining numbers since 1994."
+<br><br> Be as specific as reasonably possible for your wild thing!
+-->
+
+The **Giant Cuttlefish** (scientific name: *Sepia apama*) is the largest among its kind and resides in the coastal waters of southern Australia. This marine species is noteworthy for its remarkable ability to change color, skin texture, and body shape instantly, using these talents for effective camouflage against rocks, sand, and seaweed [@deptenvwater2022cuttlefish]. Giant Cuttlefishes thrive in colder temperatures, particularly below 17°C, which are considered optimal for their breeding [@kelsh]. During the breeding season, which spans from April to September with a peak in May and June, they breed in massive numbers and feed at a significantly reduced rate [@runck2021giantcuttlefish]. In fact, thousands of these cuttlefish congregate annually in the waters off Whyalla in South Australia, offering a unique spectacle [@deptenvwater2022cuttlefish]. Tourists can witness them up-close by snorkeling or diving around Point Lowly and Stony Point, known as Cuttlefish Coast [@deptenvwater2022cuttlefish]. These locations are recognized as among the few sites where Giant Cuttlefish form large breeding groups during specific times of the year. Unfortunately, due to overfishing, their populations in southern Australia are at risk of becoming endangered [@whyalla2023cuttlefish]. This is exacerbated by extensive fishing activities, where Giant Cuttlefishes are primarily harvested for both consumption and bait [@aglibot2014sepiaapama].
+
+
+```{r image, echo=FALSE, out.width = '100%'}
+knitr::include_graphics("squid-image.jpg")
+```
+
+
+Hence, this report will provide a comprehensive analysis of the Giant Cuttlefish, delving into its sighting patterns in correlation with weather conditions and tourism trends.
+
+
+### Data Source 
+
+The occurrence data for Giant Cuttlefishes was obtained from the [Atlas of Living Australia](https://www.ala.org.au/), using the `atlas_occurrences` function from the `galah` package [@galahpackage]. Although this openly accessible online resource provides valuable insights into Australia's biodiversity, it's important to acknowledge certain limitations that might impact potential analyses and conclusions:
+
+**1. Data Quality Variation:** Sightings data encompass contributions from a wide array of individuals, ranging from seasoned experts in Giant Cuttlefish observation to enthusiastic but less-experienced observers. This diversity in data collection methods and expertise levels may introduce inconsistencies in data quality, potentially affecting the dependability of recorded sightings.
+
+**2. Taxonomic Precision:** The accuracy of species identification within the data could be compromised since it relies on contributors who may not possess expertise in cuttlefish taxonomy. Errors in species identification may lead to inaccuracies within the dataset.
+
+**3. Sampling Bias Concerns:** Efforts to collect data might prioritize easily accessible regions or areas known for frequent cuttlefish sightings. This bias in sampling could result in an over-representation of specific locations, potentially neglecting others and distorting the overall depiction of Giant Cuttlefish occurrences.
+
+**4. Incomplete Records:** Given the diverse sources contributing to the dataset, it's conceivable that some records lack completeness, featuring missing or null values in one or more variables. These data gaps can limit the comprehensiveness and usability of the dataset for certain analytical purposes.
+
+## Data Description
+
+<!--
+2. Download all the occurrence records from the Atlas of Living Australia, ideally scripted using the `atlas_occurrences()` function from the `galah` package. Make sure you include date, time, collector identification details. Save this into a `data-raw` folder in your repo.
+-->
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+# library loading 
+library(galah) 
+library(tidyverse)
+library(VIM)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(rnoaa)
+library(geosphere)
+library(ggmap)
+library(gganimate)
+library(knitr)
+library(kableExtra)
+library(tsibble)
+library(ggbeeswarm)
+library(RColorBrewer)
+library(plotly)
+library(sf)
+library(rmapshaper)
+library(viridis)
+library(leaflet)
+library(nullabor)
+
+```
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+
+##download Sepia apama data
+galah_config(email = "januaryvv123@gmail.com") 
+
+sepia<- galah_call() |> 
+  galah_identify("Sepia apama") |> 
+  galah_select(basisOfRecord, recordedBy, recordedByID, eventType,
+               group = c("basic", "event")) |>
+  atlas_occurrences()
+
+save(sepia, file = "data-raw/sepia.RDA")
+```
+
+The dataset under analysis, provided by @atlaslivingaustralia-sepiaapama, comprises of 2,923 observations and 8 distinct variables. These variables offer valuable insights into the occurrences of Giant Cuttlefish (*Sepia apama*) in their natural habitat within Australia. 
+
+The following table offers a thorough overview of each variable:
+
+```{r tableref, include=TRUE, message = FALSE, warning = FALSE, eval = TRUE, echo = FALSE, fig.height = 4, fig.width = 4}
+
+descriptions <- c(
+  "The precise latitude coordinates of Giant Cuttlefish sightings, indicating the north-south position of each observation",
+  "The exact longitude coordinates of Giant Cuttlefish sightings, indicating the east-west position of each observation",
+  "Date and time when each Giant Cuttlefish sighting was recorded",
+  "Scientific name of the species being observed (i.e. Sepia apama)",
+  "Concept ID specifically assigned to the taxonomic classification of Sepia apama (aids in taxonomic referencing)",
+  "Unique identifier for each observation to prevent entries duplication",
+  "Name of the data resource (i.e. source of the data)",
+  "Status of each Giant Cuttlefish sighting (indicating whether the species was 'PRESENT' or 'ABSENT' during the observation)",
+  "Additional remarks/notes  regarding the specific details of each sighting event",
+  "Timestamp or time of the sighting event, indicating when the observation was recorded",
+  "Unique identifier assigned to each sighting event",
+  "Level of effort/resources invested in the sampling process for each sighting event",
+  "Specific protocol or methodology employed during the sampling process",
+  "Source of the data; indicates whether the recorded data is based on machine-generated observations or human-recorded information",
+  "Name of the individual/organisation responsible for recording the sighting event",
+  "Unique identifier of the recorder",
+  "Type or category of the sighting event"
+)
+
+summary_table <- data.frame(Variable = names(sepia))
+
+summary_table <- summary_table %>%
+  mutate(Data_Type = sapply(sepia, class))
+
+summary_table <- summary_table %>%
+  rename("Data Type" = Data_Type)
+
+summary_table$Description <- descriptions
+
+kable(summary_table, "html", 
+      caption = "Description of Variables (Giant Cuttlefish Raw Dataset)") %>%
+  kable_styling() 
+
+```      
+
+### Methods for Data Cleaning
+
+Methods and strategies to thoroughly inspect and ensure the accuracy of the Giant Cuttlefish dataset include:
+
+- **Checking for Data Types:** All variable types in the observed dataset should be thoroughly checked. This is to prevent any misinterpretation of data and ensure that appropriate statistical techniques are applied, as different data types may require different methods of analysis.
+
+- **Filtering Only Valid Wild Sightings:** To enhance the dataset's reliability, dependable Giant Cuttlefish occurrence records should be selected. We can identify unreliable sightings by assessing assertion validity, such as flagging instances with invalid basis of records. This refinement process is essential as it ensures that the dataset used for analysis is based on reliable and accurate observations, minimizing the potential for misleading results in scientific studies and conservation efforts related to Giant Cuttlefish.
+
+- **Removing Missing Values:** Null values in the `decimalLatitude`, `decimalLongitude` and `eventDate` variables should be removed, especially if the proportions of missing values are relatively large. This is crucial to ensure the reliability of spatial and temporal analyses, as missing geographical or timestamp data can lead to inaccuracies and incomplete insights.
+
+- **Managing Dates:** The `eventDate` variable, currently formatted as a datetime (dttm) containing year, month, date, and time within a single cell, requires additional processing. It should be split into distinct columns for year, month, day, and time. This facilitates precise temporal analysis and enables extraction of meaningful insights from the data.
+
+
+
+## Initial data analysis
+
+<!--
+3. Perform a data quality check, and then go ahead and clean the data, saving only the wild sightings. Save the resulting data in a `data` folder as an `WILD_THING_COMMON_NAME.rda` file, so that any special variable types are clearly available. (Replace `WILD_THING_COMMON_NAME` with lower case common name of your assigned wild thing.) *Note:* Some are museum or historical records or live in an animal sanctuary or zoo, which do not truly capture their wild behaviour. Downloading the event information (`galah_select(group = "event")`) can help identify wild sightings.
+
+Weather data pre-processing here too.
+-->
+
+### Checking for Data Types 
+
+Firstly, a thorough evaluation of the data types associated with each column was conducted to ensure the consistency and appropriateness of the data types within the dataset. It was discovered that there were no apparent discrepancies or issues pertaining to the data types across the various columns.
+
+
+```{r, echo=FALSE, include = FALSE}
+# View the data type of each column
+sapply(sepia, class) 
+```
+
+
+### Filtering Only Valid Wild Sightings
+
+```{r warning=FALSE, message=FALSE, echo=FALSE, include = FALSE}
+# filter reliable sightings
+sepia_asser<- galah_call() |> 
+  galah_identify("Sepia apama") |> 
+  galah_select(group = "assertions") |>
+  atlas_occurrences() |> 
+  filter(BASIS_OF_RECORD_INVALID == "FALSE")
+
+merged <- inner_join(sepia, sepia_asser, by="recordID")
+
+sepia_new <- merged |> 
+  select(names(sepia))
+```
+
+```{r warning=FALSE, message=FALSE, echo=FALSE, include = FALSE}
+#filter wild sightings
+#sepia_event<- galah_call() |> 
+#  galah_identify("Sepia apama") |> 
+#  galah_select(recordID, group = "event") |>
+#  atlas_occurrences() 
+
+#event <- subset(sepia_event, is.na(samplingProtocol)) |>
+#  select(-eventDate)
+
+#merged2 <- inner_join(sepia_new, event, by="recordID")
+
+#sepia_apama <- merged2 |> 
+#  select(names(sepia_new))  
+```
+
+Information regarding the validity of assertions for occurrence records of *Sepia apama* was also acquired from the [Atlas of Living Australia](https://www.ala.org.au/) website, excluding records with invalid basis of data (i.e. unreliable sightings). The resulting dataset was then merged with the original `sepia` dataset based on shared record IDs, facilitating the integration of reliable sighting information. 
+
+After further analysis, 277 material samples and 606 preserved specimens were identified in the dataset. These records were not removed as they were found to be relatively dispersed rather than concentrated in one specific location. Despite their preservation, they could still indicate wild sightings of the Giant Cuttlefish, as they may have been collected after being observed in the wild. Therefore, it is appropriate to include them in the overall count of sightings, considering their potential significance in understanding the distribution and behavior of the species.
+
+
+```{r, echo = FALSE}
+
+# removing non-valid wild sightings
+
+summary_data <- sepia_new %>%
+  group_by(basisOfRecord) %>%
+  summarise(count = n())
+
+kable(summary_data, format = "html", caption = "Summary of Giant Cuttlefish Data by Basis of Record", align = "c")
+
+
+```
+
+### Removing Missing Values 
+
+Upon further assessing the dataset, we identified 10 missing values each for `decimalLatitude` and `decimalLongitude`, while `eventDate` exhibited no missing values. Due to the importance of the `decimalLatitude` and `decimalLongitude` variables in our weather data analysis, records with missing values in these fields were excluded to ensure the accuracy and reliability of our subsequent analyses.
+
+```{r, echo=FALSE, include = FALSE}
+# Check each column for NA values
+na_count <- sapply(sepia_new, function(x) sum(is.na(x)))
+
+
+df <- data.frame(Variable = names(na_count), 
+                 NA_Count = na_count)
+
+ggplot(df, aes(x = Variable, y = NA_Count)) +
+  geom_col() +
+  labs(title="Number of NA Values in Each Column",
+       x = "Variable", 
+       y = "Count of NA Values") +
+       theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+geom_text(aes(label = NA_Count), vjust = -0.5) 
+
+```
+
+```{r warning=FALSE, message=FALSE, echo=FALSE, include = FALSE}
+
+sepia_new <- sepia_new %>% 
+  filter(!is.na(decimalLatitude) & !is.na(decimalLongitude) & !is.na(eventDate))
+
+# final check for missing values
+
+colSums(is.na(sepia_new))
+
+save(sepia_new, file = "data/sepia_new.RDA")
+
+```
+
+### Managing Dates
+
+To enable comprehensive temporal analysis, the `eventDate` variable was later divided into distinct columns representing the year, month, day, and time. Additionally, all records prior to 1980 were filtered out, focusing the analysis on data from 1980 onwards to ensure reliable sightings records. The finalized dataset was then subsequently saved into the designated `data` folder for further analysis.
+
+
+```{r warning=FALSE, message=FALSE, echo=FALSE, include = FALSE}
+
+sepia_new <- sepia_new %>%
+  mutate(eventDate = as.Date(eventDate)) %>%
+  filter(year(eventDate) >= 1980)
+
+```
+
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+
+# new_sepia_apama <- kNN(sepia_apama, k= 5)
+
+# new_sepia_apama <- new_sepia_apama %>%
+#  select(-ends_with("_imp"))
+
+# new_sepia_apama <- new_sepia_apama %>%
+#  mutate(
+#    eventDate = as.character(eventDate),
+#    date_time = str_split(eventDate, " ", simplify = TRUE),
+#    eventDate = format(as.Date(date_time[, 1], format = "%Y-%m-%d"), #"%Y-%m-%d"),
+#    eventTime = date_time[, 2]
+#  ) %>%
+#  select(-date_time)
+
+# new_sepia_apama <- new_sepia_apama %>%
+#  arrange(as.Date(eventDate))
+
+# save(new_sepia_apama, file = "data/sepia_apama.RDA")
+
+```
+
+
+
+### Weather data pre-processing    
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+aus_stations <- ghcnd_stations() |>
+  filter(str_starts(id, "ASN")) |>
+  filter(last_year >= 2020) |>
+  mutate(wmo_id = as.numeric(wmo_id),
+         name = str_to_lower(name)) |>
+  select(-state, -gsn_flag) |>
+  filter(element %in% c("PRCP", "TMAX", "TMIN")) |>
+  nest(element: last_year) |>
+  rowwise() |>
+  filter(nrow(data) == 3) |>
+  select(-data)
+```
+
+```{r warning=FALSE, message=FALSE, echo=FALSE, include = FALSE}
+## subset the occurrence data
+
+# View summary to identify region
+summary(sepia_new$decimalLatitude)
+summary(sepia_new$decimalLongitude) 
+
+# Specify region of interest 
+lat_min <- -43  
+lat_max <- -33
+long_min <- 98
+long_max <- 152
+
+# Subset sepia data 
+sepia_region <- sepia_new[(sepia_new$decimalLatitude > lat_min &  
+                       sepia_new$decimalLatitude < lat_max) & 
+                      (sepia_new$decimalLongitude > long_min &
+                       sepia_new$decimalLongitude < long_max),]
+
+# Subset stations based on the location of sepia  
+aus__stations_subset <- aus_stations %>%
+  filter(latitude > lat_min, latitude < lat_max, 
+         longitude > long_min, longitude < long_max)
+```
+
+
+We employed the `rnoaa` package to retrieve weather station data from the Global Historical Climatology Network (GHCN) database. Focusing on a specific area abundant with Giant Cuttlefish sightings, we narrowed down our analysis to the corresponding region. To determine the geographical scope, we examined the summary statistics of `decimalLatitude` and `decimalLongitude` in the `sepia_apama` dataset, opting to use the minimum and third quartile values as the defining range.
+
+Subsequently, we filtered the stations in the dataset based on their proximity to the identified location of Giant Cuttlefish sightings. This approach enabled us to refine our analysis and draw more precise insights from the weather data.
+
+
+```{r, echo=FALSE}
+
+# Calculate distances from each sighting to all stations
+distances <- distm(sepia_region[,c('decimalLongitude', 'decimalLatitude')], 
+                   aus_stations[,c('longitude', 'latitude')], 
+                   fun = distHaversine)
+
+# Find index of closest station for each sighting
+closest_station_index <- apply(distances, 1, which.min) 
+
+# Add closest station ID to sightings dataframe
+sepia_region$station_id <- aus_stations$id[closest_station_index]
+
+# Count occurrences of each station_id
+station_counts <- sepia_region %>%
+  group_by(station_id) %>%
+  summarise(count = n(), .groups = "drop")
+
+# Find station_id with max count
+most_common_station <- station_counts %>%
+  filter(count == max(count))
+```
+
+
+We then leveraged the Haversine formula to compute the distances between each Giant Cuttlefish sighting and all available weather stations, utilizing the longitude and latitude coordinates. Subsequently, we tallied the occurrences of each unique station_id. Our analysis revealed that station ASN00066062 emerged with the highest count, suggesting its proximity to the most individual Giant Cuttlefish sightings. This finding underscores the potential significance of this particular weather station in the context of Giant Cuttlefish habitat and behavior.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+sydney_observatory_hill <- aus_stations |>
+  filter(id == "ASN00066062") |>
+  rowwise() |>
+  mutate(ts = list(meteo_pull_monitors(
+    monitors = id, var = c("PRCP", "TMAX", "TMIN"),
+    date_min = "1980-01-01",
+    date_max = "2023-09-13") |>
+      select(-id))) |>
+  rename(lat = latitude, long = longitude, elev = elevation) |> select(id, long, lat, elev, name, wmo_id, ts) %>%
+  unnest(ts) |>
+  mutate(tmax = tmax/10, tmin = tmin/ 10)
+
+```
+
+Our analysis entailed the retrieval of monthly meteorological data, including precipitation and temperature records, specifically from the Sydney Observatory Hill station. The data spanned from January 1st, 2004, to September 13th. After streamlining the dataset by renaming certain columns for better clarity and selecting only the necessary variables, we restructured the time-series data to facilitate more convenient per-time-point analysis.
+
+Furthermore, we made necessary adjustments to the temperature data, converting maximum and minimum temperatures from tenths of a degree Celsius to the standard degree Celsius unit to ensure consistency and ease of interpretation across the dataset.
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+
+# Convert eventDate from character to date
+sepia_new$eventDate <- as.Date(sepia_new$eventDate)
+
+joined <- left_join(sydney_observatory_hill, sepia_new, by = c("date" = "eventDate"))
+
+# Create sighting indicator variable
+joined <- joined %>% 
+  mutate(sighting = ifelse(is.na(recordID), 0, 1))
+
+#save data
+save(joined, file = "data/sighting_weather.RDA")
+```
+
+Upon completing the data processing for station ASN00066062, our subsequent action involved integrating this weather data with the corresponding sepia sighting records. To accomplish this, we introduced a new binary variable named `sighting`, assigning values of 0 or 1 to indicate the absence or presence of a Giant Cuttlefish sighting for each day's weather data. This approach enabled us to generate a combined dataset comprising daily weather information alongside the occurrence or absence of wild Giant Cuttlefish sightings on each respective day. This merged sighting_weather dataset was then into the project's `data` folder for future analysis.   
+
+Documenting the days labeled as sightings occurred is crucial for various reasons: 
+
+1. It provides insights into the frequency of Giant Cuttlefish sightings, aiding in the assessment of population trends and distribution patterns over time.   
+
+2. Categorizing days with and without sightings helps establish correlations between sighting occurrences and specific environmental conditions, such as temperature variations and water conditions, contributing to a comprehensive understanding of the species' behavior.
+
+3. The labeled dataset serves as a fundamental component for the development of predictive models aimed at forecasting future Giant Cuttlefish sightings based on historical weather and sighting data.
+
+
+## Exploratory data analysis
+
+<!--
+4. Make plots of the data to check each of your expectations, and report what you learn. *Note:* This might also be a place where visual inference methods *may* be useful to determine if what is seen agrees or disputes what you expected. 
+
+Weather data exploration here too.
+-->
+
+
+```{r, echo=FALSE, include = FALSE, eval = FALSE}
+
+# EXPECTATION 1
+
+# Convert eventDate to Date type if it's not already
+sepia_new$eventDate <- as.Date(sepia_new$eventDate)
+
+# Extract month from eventDate
+sepia_new$month <- format(sepia_new$eventDate, "%m")
+
+sightings <- sepia_new %>% filter(!is.na(eventDate))
+  
+  
+ggplot(sightings, aes(x=month)) +
+  geom_bar(fill="steelblue") +
+  labs(x="Month", y="Number of sightings") +
+  scale_x_discrete(labels=c("01" = "Jan", "02" = "Feb", "03" = "Mar",
+                            "04" = "Apr", "05" = "May", "06" = "Jun",
+                            "07" = "Jul", "08" = "Aug",
+                            '09'='Sep', '10'='Oct', '11'='Nov', '12'='Dec'))+
+  theme_minimal() +
+  labs(title="Number of Giant Cuttlefish Sightings by Month (1980-2021)")
+```
+
+
+```{r, eval = FALSE, echo=FALSE}
+
+# EXPECTATION 2
+
+# Get the map from Google Maps
+australia_map <- get_stamenmap(bbox = c(left = 113, bottom = -44, right = 154, top = -10), zoom = 5)
+```
+
+```{r, message = FALSE, warning = FALSE, echo=FALSE, include = FALSE, eval = FALSE}
+
+# EXPECTATION 2
+
+fullmap <- leaflet(sepia_new) %>%
+  setView(lng = 133, lat = -28, zoom = 4)
+
+fullmap <- addProviderTiles(map = fullmap,
+                           provider = "Esri.WorldStreetMap",
+                           options = providerTileOptions(noWrap = TRUE)) %>% 
+          addCircleMarkers(lng = ~decimalLongitude,
+                           lat = ~decimalLatitude,
+                           radius = 2,
+                           color = "transparent",
+                           fillColor = "#B84C7D", 
+                           fillOpacity = 0.5)
+
+fullmap
+
+
+```
+
+
+```{r, echo=FALSE, out.width = '50%', include = FALSE}
+knitr::include_graphics("sightings-by-location.png")
+```
+
+
+```{r, echo=FALSE, message = FALSE, warning = FALSE, include = FALSE, eval = FALSE}
+
+# EXPECTATION 3
+
+sepia_new <- sepia_new %>% 
+  mutate(year = lubridate::year(eventDate),
+         month = lubridate::month(eventDate))
+
+
+sightings_since_2013 <- sepia_new %>% 
+  group_by(year) %>% 
+  summarise(count=n())
+
+
+sightings_2013 <- ggplot(sightings_since_2013, aes(x=year, y=count)) +
+  geom_line(color = "#B84C7D") +
+  geom_point(color = "#B84C7D") +
+  # scale_x_continuous(breaks = seq(min(sightings_since_2015$year), 
+  #                                 max(sightings_since_2015$year), by = 1)) + 
+  labs(x="Year", 
+       y="Number of Sightings", 
+       title="Annual Giant Cuttlefish Sightings (1980-2021)") +
+  theme_bw()
+
+ggplotly(sightings_2013)
+
+```
+
+
+### Weather Data Analysis
+
+```{r, echo=FALSE}
+
+ssmap <- leaflet() %>%
+  setView(lng = 143, lat = -37, zoom = 5)
+
+ssmap <- addProviderTiles(map = ssmap,
+                           provider = "Esri.WorldStreetMap",
+                           options = providerTileOptions(noWrap = TRUE)) %>% 
+          addCircleMarkers(data = sepia_new,
+                           lng = ~decimalLongitude,
+                           lat = ~decimalLatitude,
+                           radius = 2,
+                           color = "transparent",
+                           fillColor = "#B84C7D", 
+                           fillOpacity = 0.5) %>% 
+          addCircleMarkers(data = aus__stations_subset,
+                           lng = ~longitude,
+                           lat = ~latitude,
+                           radius = 2,
+                           color = ~ifelse(id == "ASN00066062", "blue", "transparent"),
+                           fillColor = "#007bff", 
+                           fillOpacity = ~ifelse(id == "ASN00066062", 1, 0.5),
+                           label = ~id,
+                           labelOptions = labelOptions(noHide = FALSE, sticky = FALSE)) %>% 
+          addLegend(position = "bottomleft",
+                    colors = c("#B84C7D", "#007bff", "blue"),
+                    labels = c("Sepia Apama Sightings", "Weather Stations", "Stations we choose"),
+                    title = "Color")
+
+ssmap
+```
+
+The above map depicts the spatial distribution of weather stations within the specified region, which is characterized by a high concentration of Giant Cuttlefish sightings. Uncovering meaningful associations between daily weather conditions and sightings presents a notable challenge. 
+
+However, considering that station ASN00066062 exhibited the highest frequency of occurrences in close proximity to the sighting locations, we focused our exploratory analysis on this specific station. By focusing on this prominent station, we aim to unveil potential correlations and insights between the observed daily weather patterns and the occurrences of Giant Cuttlefish sightings in subsequent analyses.
+
+#### Giant Cuttlefish Sightings vs Temperature
+
+```{r, warning = FALSE, echo = FALSE, message = FALSE}
+
+sumdf <- joined %>% 
+  group_by(sighting) %>%
+  summarise(mean_tmax = round(mean(tmax, na.rm = TRUE), 1), 
+            median_tmax = round(median(tmax, na.rm = TRUE),1)) %>% 
+  rename(Sightings = sighting, 
+         `Mean Max. Temperature (°C)` = mean_tmax, 
+         `Median Max. Temperature (°C)` = median_tmax)
+
+kable(sumdf, format = "html", caption = "Summary of Maximum Temperatures by Giant Cuttlefish Sighting", 
+      align = c('c', 'c', 'c')) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = F)
+
+```
+
+The above summary statistics for station ASN00066062 reveals that the mean and median maximum temperatures exhibit a slight variation between days when Giant Cuttlefish was sighted and days when it was not sighted. For instance, the average maximum temperature for sighting days is 23.2°C, which is only slightly higher than the mean of 22.6°C for non-sighting days. 
+
+This subtle temperature distinction implies that temperature might not significantly influence the likelihood of Giant Cuttlefish sightings, suggesting that other factors could be more influential in determining their presence or absence. For instance, other relevant factors, such as habitat, prey availability, mating behaviors, and seasonal changes, could also impact the sightings of Giant Cuttlefish.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#| label: fig-1
+#| fig-cap: Comparison of Maximum Temperatures based on Giant Cuttlefish Sightings from 1998 to 2022
+
+maxtemp_diff <- joined %>%
+  mutate(sighting = factor(sighting, labels = c("Absent", "Present")))
+
+ggplot(maxtemp_diff, aes(x = sighting, y = tmax, fill = sighting)) +
+  geom_boxplot(outlier.shape = NA) +
+  labs(
+    x = "Sighting",
+    y = "Maximum Temperature (°C)",
+    title = "Maximum Temperatures Comparison based on Giant Cuttlefish Sightings"
+  ) +
+  scale_fill_manual(values = brewer.pal(3, "Set1")) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+```
+
+@fig-1, which compares the maximum temperatures based on the presence or absence of Giant Cuttlefish sightings, also supports our findings from the earlier summary statistics. It reaffirms that the median maximum temperature on days when Giant Cuttlefish are sighted is only marginally higher than on days when they are not. 
+
+However, for days when Giant Cuttlefishes are sighted, the boxplot indicates a negatively skewed distribution. This skewness suggests that a relatively higher frequency of Giant Cuttlefish sightings occurs on days when maximum temperatures are towards the lower end of the temperature range. This observation may point towards a potential correlation between lower temperatures and an increased likelihood of Giant Cuttlefish sightings.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#| label: fig-2
+#| fig-cap: Illustrating the Relationship between Average Maximum Temperature and Giant Cuttlefish Sightings from 1980 to 2021
+
+max_temp <- joined %>%
+  filter(sighting == 1) %>%
+  mutate(temperature_range = cut(tmax, 
+                                breaks = seq(10, 45, by = 0.5), 
+                                right = FALSE, 
+                                include.lowest = TRUE)) %>%
+  group_by(temperature_range) %>%
+  summarise(count = n(),
+            average_temperature = round(mean(tmax), 1))
+
+max_temp_plot <- ggplot(max_temp, 
+                        aes(x = average_temperature, 
+                            y = count, fill = temperature_range, 
+                            text = paste("Average Temperature: ", average_temperature, "°C<br>",
+                                         "Total Sightings: ", count, "<br>",
+                                         "Maximum Temperature Range: ", temperature_range))) +
+  geom_point(size = 3, color = "transparent") +
+  scale_fill_viridis(discrete = TRUE, name = "Maximum Temperature Range") +
+  labs(
+    x = "Average Maximum Temperature (°C)",
+    y = "Number of Sightings",
+    title = "Temperature Impact on Giant Cuttlefish Sightings (1980-2021)"
+  ) +
+  theme_minimal()
+
+ggplotly(max_temp_plot, tooltip = "text")
+
+```
+
+
+@fig-2 effectively illustrates the relationship between daily maximum temperatures and Giant Cuttlefish occurrences. Interestingly, there appears to be a higher concentration of sightings during days with an average maximum temperature ranging between 24-25°C, hinting at potential temperature preferences for this species. However, a direct positive or negative correlation between temperature and sightings is not immediately apparent.
+
+It is evident that sightings are comparatively rare at lower temperatures, particularly below 15°C. In contrast, as temperatures exceed 28°C, the frequency of sightings also declines. This implies that Giant Cuttlefishes may indeed exhibit a preference for specific temperature ranges, which is likely linked to their breeding behaviors. According to @kelsh, Giant Cuttlefishes are known to migrate to the coastlines of the Upper Spencer Gulf around May, coinciding with the onset of decreasing water temperatures (around 16°C), as this marks the ideal conditions for the female cuttlefish to initiate their egg-laying process. These findings suggest that temperature plays a crucial role in the reproductive ecology and behavioral patterns of the Giant Cuttlefish.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#| label: fig-3
+#| fig-cap: Illustrating Monthly Average Temperatures and Corresponding Giant Cuttlefish Sightings
+
+joined$month <- month(joined$date)
+
+joined$month_name <- month.abb[month(joined$date)]
+
+monthly_summary <- joined %>%
+  group_by(month_name) %>%
+  summarise(AvgMaxTemp = mean(tmax, na.rm = TRUE),
+            AvgMinTemp = mean(tmin, na.rm = TRUE),
+            SightingCount = sum(sighting)) %>%
+  filter(!is.na(month))
+
+ggplot(data = monthly_summary, aes(x = AvgMaxTemp, y = AvgMinTemp,
+                                   color = SightingCount)) +
+  geom_point(size=3) +
+  geom_text(aes(label=month_name), vjust=-1) +
+  labs(x="Average Max. Temperature", y="Average Min. Temperature",
+       color="Sighting Count") +
+  scale_color_gradient(low = "pink", high = "black") +
+  ylim(8, 22) +   # Modify these values as needed
+  ggtitle("Giant Cuttlefish Sightings by Monthly Average Temperatures") +
+  theme_minimal()
+
+
+```
+
+@fig-3 also showcases the average monthly temperature (max & min) alongside the corresponding sighting counts, with each point representing a specific month. The points are color-coded to denote different levels in sighting counts, and each is labeled with its respective month. There appears to be a peak in sightings from March to April, as well as October, potentially coinciding with relatively higher temperatures. 
+
+Conversely, the data reveals a significant drop in sightings from June to September, likely attributed to the lower temperatures during this period. This pattern aligns with findings from @whyalla2023cuttlefish, which suggests that Giant Cuttlefish migrate to cooler waters for spawning during the winter months (i.e. May to August). 
+
+Overall, these observations imply a nuanced relationship between temperature and the behavior of Giant Cuttlefish, highlighting the significance of temperature regulation in their reproductive and migratory patterns.
+
+
+#### Giant Cuttlefish Sightings vs Precipitation
+
+```{r, echo=FALSE, warning = FALSE, message = FALSE}
+
+prcp <- joined %>%
+  group_by(sighting) %>%
+  summarise(mean_prcp = round(mean(prcp, na.rm = TRUE),1)) %>% 
+  rename(Sightings = sighting, 
+         `Mean Precipitation (mm)` = mean_prcp)
+
+kable(prcp, format = "html", caption = "Summary of Mean Precipitation by Giant Cuttlefish Sighting", 
+      align = c('c', 'c', 'c')) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = F)
+
+
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#| label: fig-4
+#| fig-cap: Correlation between Giant Cuttlefish Sightings and Monthly Precipitation Levels
+
+joined$year <- year(joined$date)
+
+prcp_grouped <- joined %>%
+  group_by(year, month) %>%
+  summarise(SightingCount = sum(sighting), 
+            MeanPrcp = round(mean(prcp, na.rm = TRUE),1)) %>%
+  ungroup()
+
+
+prcp_plot <- ggplot(prcp_grouped, aes(x = MeanPrcp, 
+                                      y = SightingCount, 
+                                      color = MeanPrcp, 
+                                      text = paste("Mean Precipitation: ", MeanPrcp, "<br>", "Sightings: ", SightingCount))) +
+  geom_point(size = 2) +
+  labs(x = "Mean Precipitation (mm)", y = "Sightings",
+       title = "Giant Cuttlefish Sightings by Monthly Precipitation Levels",
+       color = "Mean Precipitation (mm)") +
+  scale_color_distiller(palette = "Spectral") +
+  theme_minimal() +
+  facet_wrap(~ factor(month, labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")), scales = "free") +
+  theme(
+    panel.border = element_rect(color = "gray", 
+                                fill = NA, 
+                                size = 0.5)
+  )
+
+ggplotly(prcp_plot, tooltip = "text")
+
+```
+
+
+According to the summary table, mean precipitation is generally lower on days when Giant Cuttlefish sightings occur. @fig-4 also supports this observation, revealing that in each month, days with lower mean precipitation correspond to relatively higher Giant Cuttlefish sightings. However, exceptions are notable in months such as March, May, and December, where high sightings coincide with elevated precipitation levels. 
+
+Therefore, this suggests that Giant Cuttlefish sightings are generally associated with drier weather conditions, suggesting a potential preference for these conditions. The deviations in certain months could also signify the species' adaptive responses to distinct environmental cues, especially during critical phases like their breeding season, which is known to commence from April to mid-May. Furthermore, the higher likelihood of Giant Cuttlefish sightings on drier days is possibly influenced by the reduced human presence in coastal areas during wet and rainy conditions, as such weather discourages activities such as beachcombing and snorkeling, which are popular for Giant Cuttlefish sightings.
+
+
+### Tourism Data Analysis
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+load(file='data/tourism.rda')
+
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+
+whyalla <- tourism %>% 
+  filter(str_detect(Region, "Whyalla")) %>% 
+  as_tsibble(
+    key = c(Region, Purpose),
+    index = Quarter)
+
+devonport <- tourism %>% 
+  filter(str_detect(Region, "Devonport")) %>% 
+  as_tsibble(
+    key = c(Region, Purpose),
+    index = Quarter)
+
+manly <- tourism %>% 
+  filter(str_detect(Region, "Manly")) %>% 
+  as_tsibble(
+    key = c(Region, Purpose),
+    index = Quarter)
+
+```
+
+#### Regions Selection 
+
+```{r loadSA2, warning = FALSE, message = FALSE, echo = FALSE}
+
+ SA2_regions <- st_read(here::here("data/SA2_2021_AUST_SHP_GDA2020/SA2_2021_AUST_GDA2020.shp")) %>%
+   ms_simplify(keep = 0.1) %>% 
+   st_transform(crs = st_crs("WGS84")) %>% 
+   st_make_valid() %>% 
+   select(STE_NAME21, SA2_NAME21, SA2_CODE21, geometry) %>% 
+   rename("state" = STE_NAME21,
+          "region" = SA2_NAME21,
+          "sa2_code21" = SA2_CODE21)
+
+```
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+sepia_sf <- sepia_new %>%
+  select(-c(dataResourceName , recordID,scientificName,taxonConceptID, basisOfRecord, recordedBy, recordedByID)) %>%
+  st_as_sf(coords = c("decimalLongitude", "decimalLatitude"),
+  crs = st_crs("WGS84"))
+
+merged_sepia_sf <-
+  st_join(SA2_regions, sepia_sf, left = TRUE) %>%
+  filter(!is.na(region))
+
+sepia_region <- left_join(SA2_regions %>% select(region, geometry, state),
+  merged_sepia_sf %>%
+    as_tibble() %>%
+    group_by(region) %>%
+    summarise(sighting = n()),
+  by = c("region" = "region")
+)
+
+sepia_region <- sepia_region %>%
+  mutate(centroid = st_centroid(geometry))
+
+sepia_region <- sepia_region %>%
+  mutate(lat = st_coordinates(centroid)[, 2],
+         long = st_coordinates(centroid)[, 1])
+
+```
+
+```{r clusters, message = FALSE, warning = FALSE, echo = FALSE}
+
+sepia_new <- sepia_new %>%
+  mutate(Region = case_when(
+    between(decimalLatitude, -33.0346 - 1, -33.0346 + 1) & 
+      between(decimalLongitude, 137.5756 - 1, 137.5756 + 1) ~ "Whyalla",
+    between(decimalLatitude, -41.1801 - 1, -41.1801 + 1) & 
+      between(decimalLongitude, 146.3503 - 1, 146.3503 + 1) ~ "Devonport",
+    between(decimalLatitude, -33.7969 - 1, -33.7969 + 1) & 
+      between(decimalLongitude, 151.2850 - 1, 151.2850 + 1) ~ "Manly",
+    TRUE ~ "Others"
+  ))
+
+```
+
+
+```{r leafletMap2, message = FALSE, warning = FALSE, echo = FALSE}
+#| label: fig-5
+#| fig-cap: Distribution of Giant Cuttlefish Sightings in Key Australian Regions"
+
+sepia_map <- sepia_new %>% 
+  mutate(color = case_when(
+    Region == "Others" ~ "dimgray",
+    Region == "Whyalla" ~ "#B84C7D",
+    Region == "Devonport" ~ "#FF9243",
+    Region == "Manly" ~ "#007bff"
+  ))
+
+
+ausmap <- leaflet(sepia_map) %>%
+  setView(lng = 143, lat = -37, zoom = 5)
+
+ausmap <- addProviderTiles(map = ausmap,
+                           provider = "Esri.WorldStreetMap",
+                           options = providerTileOptions(noWrap = TRUE)) %>% 
+          addCircleMarkers(lng = ~decimalLongitude,
+                           lat = ~decimalLatitude,
+                           radius = 2,
+                           color = "transparent",
+                           fillColor = ~color, 
+                           fillOpacity = 1) %>% 
+          addLegend(position = "bottomleft",
+                    colors = unique(sepia_map$color),
+                    labels = unique(sepia_map$Region),
+                    title = "Region")
+
+ausmap
+
+```
+
+
+Giant Cuttlefishes are a common sight in the coastal waters of Australia, with their habitat ranging from the southern regions to the east coast of Queensland, extending westward to Ningaloo Reef in Western Australia [@deptenvwater2022cuttlefish]. As shown in the map in @fig-5, sightings are  primarily concentrated in areas near three key regions: Manly, Devonport and Whyalla.
+
+Notably, Whyalla is recognized for providing an optimal spawning environment for female cuttlefishes to securely attach their eggs [@whyalla2023cuttlefish], solidifying its status as a distinctive Giant Cuttlefish viewing site. Moreover, the Tasmanian waters, particularly in northern Tasmania, host abundant Giant Cuttlefish populations, while their presence is comparatively less prevalent in the southern parts of the region [@Grove_little_2018]. This makes the areas adjacent to Devonport particularly intriguing for further analysis, considering the town's location on the northern coast of Tasmania. Similarly, the shallow beaches of Manly, situated along Australia's east coast and well within the habitat range of Giant Cuttlefishes, serve as a common dwelling place for this species [@northernbeaches]. 
+
+Therefore, given these insights, this report aims to conduct a comprehensive temporal analysis of tourism data from the three aforementioned regions, utilizing information sourced from the university's database which was originally extracted from [Tourism Research Australia](https://www.tra.gov.au/).
+
+
+#### Tourism Trends (Devonport, Manly & Whyalla) 
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+whyalla$Region <- "Whyalla"
+devonport$Region <- "Devonport"
+manly$Region <- "Manly"
+all_region_data <- rbind(whyalla, devonport, manly)
+all_region_data <- subset(all_region_data, Purpose != "Total")
+all_region_data$Year <- as.Date(paste0(substr(all_region_data$Quarter, 1, 4), "-01-01"))
+all_region_data$year <- year(all_region_data$Year)
+all_region_data$Trips <- round(all_region_data$Trips, 0)
+
+```
+
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+#| label: fig-6
+#| fig-cap: Annual Trends in Visit Purposes Across Quarters (1998-2022)
+
+region_purpose_group <- all_region_data %>%
+  group_by(Year, Quarter, Purpose) %>%
+  summarise(Trips = round(sum(Trips)))
+
+region_purpose_group$Quarter <- sub(".*Q", "Q", region_purpose_group$Quarter)
+region_purpose_group$Quarter <- as.numeric(gsub("[^0-9]", "", region_purpose_group$Quarter))
+
+region_purpose_group$Year <- year(region_purpose_group$Year)
+
+ggplot(region_purpose_group, 
+       aes(x = Quarter, 
+           y = Trips, 
+           color = Purpose)) +
+  geom_line() + 
+  geom_point() +
+  labs(
+    title = "Annual Trends for Different Visit Purposes",
+    x = "Quarter",
+    y = "Number of Trips ('000)",
+    color = "Purpose"  
+  ) +
+  facet_wrap(~Year) +
+  theme_bw() +
+  scale_colour_discrete_divergingx() +
+  scale_x_continuous(
+    breaks = 1:4,
+    labels = c("Q1", "Q2", "Q3", "Q4")
+  ) +
+  theme(strip.text = element_text(color = "black", face = "bold"))
+
+```
+
+@fig-6 provides a detailed overview of the quarterly trends for different visit purposes between 1998 and 2022 in regions near Devonport, Manly, and Whyalla. The impact of the global COVID-19 pandemic is distinctly visible in the graph, with the years 2020 and 2021 exhibiting a significant downturn in visitation across all purposes. Although there was a partial recovery in 2022, primarily observed in visiting trips, overall visitation rates remain noticeably lower compared to the pre-pandemic years, underscoring the enduring challenges faced by the Australian travel industry in the aftermath of COVID-19.
+
+Throughout the observed period, holiday and visiting trips consistently emerged as the most popular purposes for visitation. The data points to a recurring peak in holiday visits during the first quarter, indicating a correlation with school holidays and favorable summertime conditions. Notably, the year 2018 stands out as a peak year for holiday visitation, marking a substantial surge in the first quarter in this particular category over the entire period, potentially influenced by specific events or promotional campaigns during that year.
+
+Contrary to holiday trips, visiting trips displayed a less pronounced seasonal trend. While earlier years suggested a preference for heightened visitation during the first quarter, the later years exhibited a more irregular pattern, with some years indicating higher visitation during the second and fourth quarters.
+
+On the other hand, business trips seem to exhibit a consistent and stable quarterly pattern, with no significant seasonal fluctuations noted throughout the observed timeline. The number of business trips also demonstrated a relatively constant level over time.
+
+To conclude, the discernible quarterly visitation patterns across the years offer valuable insights into the dynamic nature of the travel industry in the regions neighboring Devonport, Manly, and Whyalla. Building upon these observations, the subsequent sections will provide a more comprehensive analysis of the temporal trends, focusing on specific regions and the varied purposes of travel.
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+#| label: fig-7
+#| fig-cap: Total Trips by Region from 1998 to 2022 
+
+annual_total_trips <- all_region_data %>% 
+  group_by(year, Region) %>%
+  summarise(Trips = round(sum(Trips)))
+
+region_comparison <- ggplot(annual_total_trips, 
+                            aes(x = year, 
+                                y = Trips, 
+                                color = Region)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Total Trips by Region (1998-2022)",
+    x = "Year",
+    y = "Total Trips ('000)"
+  ) +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set2")
+
+ggplotly(region_comparison)
+
+```
+
+
+@fig-7 provides a comprehensive overview of the total trips across all purposes in the regions of Devonport, Manly, and Whyalla from 1998 to 2022. During this period, all three regions witnessed an overall increase in trip numbers. Particularly, Manly stood out with the most significant surge, consistently maintaining its position as the region with the highest trip numbers overall, excluding the years following 2020. Devonport followed closely with consistent growth, while Whyalla exhibited comparatively modest but steady progress.
+
+Additionally, a noticeable trend is evident between Manly and Devonport. Peaks in Manly's total trips, such as during 2010 and 2013, coincided with a decrease in overall trips for Devonport during those years. Post-2009, Manly demonstrated a sustained surge, solidifying its position as the primary travel destination. In contrast, Devonport led in total trips from 1998 to 2003, followed by a decline until its growth again in 2016. Both regions also experienced a significant simultaneous increase in trip numbers in 2003, hinting at a potential shared external influence impacting travel to these destinations.
+
+In contrast, Whyalla demonstrated the lowest number of trips among the three regions, with comparatively less fluctuations over the observed period. Despite the relatively stable trend, certain years, such as 2006 and 2019, displayed peaks in trip numbers for Whyalla as well.
+
+Last but not least, the significant decline in trip numbers across all three regions in 2020 and 2021 highlights the profound impact of the COVID-19 pandemic on the travel industry. However, there has been a noticeable resurgence in trip numbers for Devonport and Manly in 2022, indicating signs of recovery in these regions' travel sectors.
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+#| label: fig-8
+#| fig-cap: Annual Trips by Visit Purpose (1998-2022)
+
+annual_region_purpose <- all_region_data %>%
+  mutate(Year = lubridate::year(as.Date(Quarter, format = "%Y Q%m"))) %>%
+  group_by(Year, Region, Purpose) %>%
+  summarise(Trips = round(sum(Trips)))
+
+facet_by_purpose <- ggplot(annual_region_purpose, 
+                           aes(x = Year, 
+                               y = Trips, 
+                               color = Region)) +
+  geom_line()+  
+  facet_wrap(~ Purpose, scales = "free") +
+  labs(
+    title = "Annual Trips by Visit Purpose (1998-2022)",
+    x = "Year",
+    y = "Number of trips ('000)",
+    color = "Region"
+  ) +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set2") +
+  theme(strip.text = element_text(size = 8),
+        panel.spacing = unit(2.5, "lines"))
+ 
+
+ggplotly(facet_by_purpose)
+
+```
+
+
+@fig-8 illustrates the trends in the number of trips for four distinct purposes, namely business, holidays, visiting, and other, spanning from 1998 to 2022 across our three key regions of interest. For the purpose of this report, we will be centering our attention on the aspect of travel for holiday purposes. Given that the 'Other' category is relatively broad, our subsequent analyses will delve specifically into the travel motives associated with business and visiting as well.
+
+Regarding holiday travel, the data reveals that up until 2010, the number of people traveling to Devonport consistently surpassed those of Manly and Whyalla. In 2003, there was a significant increase in holiday travelers to Devonport, reaching a peak of nearly 121,000 trips, the highest in over two decades. This surge could be attributed to the positive feedback from earlier visitors, suggesting that word of mouth and recommendations might have contributed to the growing awareness of Devonport's attractions, prompting an increasing number of tourists to choose it as their preferred destination. Meanwhile, during the mid-2010s (specifically in 2011, 2013, 2016, and 2019), Manly experienced its peak in holiday visitors, recording the highest numbers during these respective years. In contrast, Whyalla consistently had the lowest number of holiday visits throughout the period, never exceeding 30,000 trips.
+
+Starting from 2010, the number of tourists visiting Devonport and Manly became relatively comparable, while Whyalla showed a steady yet moderate increase in visitor numbers, although still trailing behind the other two regions. Notably, all three areas witnessed a decline in tourism figures after 2019, with Devonport and Manly experiencing particularly sharp drops. This decline in early 2020 can be attributed, in part, to the overall impact of the COVID-19 pandemic, as highlighted by @bruno40recovery. However, domestic tourism gradually recovered as many Australians opted for local travel over international trips. Remarkably, in 2021, Devonport's visitor numbers swiftly returned to their previous highs. 
+
+In summary, the tourism data for Devonport and Manly exhibits significant fluctuations with no discernible pattern for holiday visits, while Whyalla exhibits a relatively stable upward trend. Despite this, it is evident that among the three regions, Devonport remains the most attractive destination for holidaymakers. 
+
+In terms of business travel, Devonport and Whyalla exhibit noticeable similarities in trends and numbers. Yet, although there was a substantial increase in the number of people traveling to Whyalla for business purposes in 2019, this was followed by a sharp decline in 2020. In contrast, Devonport experienced a significant surge in business travel in 2022. This shift may be attributed to the effects of the COVID-19 pandemic, leading to significant changes in the business operations of various companies.
+
+For visiting purposes, @fig-8 highlights Manly as having a notably higher number of visiting trips compared to the other two regions, potentially attributed to its relatively larger resident population. Interestingly, the number of visiting trips in both Manly and Devonport demonstrates a relatively similar pattern from 2015 to 2022.
+
+
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+#| label: fig-9
+#| fig-cap: Quarterly Tourism Trends by Region (1998-2022)
+
+annual_region_purpose <- all_region_data %>%
+         mutate(Quarter = lubridate::quarter(Quarter)) %>%
+  group_by(Quarter, Region, Purpose) %>%
+  summarise(Trips = round(sum(Trips)))
+
+purpose_trends <- ggplot(annual_region_purpose, 
+                         aes(x = Quarter, 
+                             y = Trips, 
+                             color = Purpose)) +
+  geom_line() + 
+  geom_point() +
+  labs(
+    title = "Quarterly Tourism Trends by Region (1998-2022)",
+    x = "Quarter",
+    y = "Number of Trips ('000)",
+    color = "Visit Purpose" 
+  ) +
+  facet_wrap(~ Region) +
+  theme_bw() +
+  scale_colour_discrete_divergingx() 
+
+
+ggplotly(purpose_trends)
+
+
+```
+
+
+@fig-9 presents the quarterly trends for each of the three primary areas focusing on various trip purposes. Overall, it is evident that the number of people opting for holiday trips to Devonport is significantly higher than in the other two regions. In contrast, Manly demonstrates a relatively average proportion of all-purpose trips (except for visiting), while Whyalla records the lowest overall number of all-purpose visitors (except for business).
+
+The dominance of holidaymakers in Devonport comes as no surprise, given its status as a prominent tourist destination celebrated for its natural landscapes and coastal attractions. Devonport is often the preferred choice for tourists in search of leisure and relaxation. The influx of visitors to Devonport for holidays appears to peak during the first quarter, closely followed by the second quarter. This can be attributed to various factors, such as favorable weather during these months, which serves as a significant attraction for tourists seeking outdoor activities and coastal relaxation. Additionally, the timing of school holidays often aligns with the first and second quarters, prompting an increase in family travel and tourism to Devonport during these periods. Meanwhile, business and visit trips exhibit comparable numbers, especially in the fourth quarter; however, the overall count of visit trips surpasses that of business trips.
+
+Within the Manly area, the highest influx of trips occurs for visiting purposes, closely followed by those visiting for holiday reasons. Both visiting and holiday trips reach their peak during the first quarter, followed by a sharp decline in the second quarter, before gradually increasing again. Conversely, the number of business travelers remains relatively stable across all four quarters, ranging from 100,000 to 150,000, with no significant fluctuations.
+
+Overall, in the Whyalla area, the predominant purpose for travel is business trips, followed by visiting and holiday trips. This distribution does not align with our initial expectations, considering Whyalla's reputation for its renowned Giant Cuttlefish viewing, where one might anticipate a relatively higher number of tourists visiting for holiday purposes. However, @fig-9 does not support this assumption.
+
+As reported by @oureconomy, Whyalla is not commonly regarded as a major tourist destination; rather, it is recognized as the largest industrial city in the South Australian region. Functioning as a vital hub for manufacturing, steel production, and resource processing in the Upper Spencer Gulf area, Whyalla's industrial significance offers an explanation for the relatively high volume of individuals traveling for business purposes.
+
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+#| label: fig-10
+#| fig-cap: Comparative Holiday Visit Trends by Region (2000-2022) over the Last Two Decades, Analyzed Quarterly
+
+region_comparison <- all_region_data %>% 
+  filter(Purpose == "Holiday", year >= 2000)
+
+
+region_comparison_plot <- ggplot(region_comparison %>% filter (Purpose == "Holiday"),
+                            aes(x = Quarter,
+                                y = Trips,
+                                color = Region)) +
+  geom_line(size = 0.8, alpha = 0.8) +
+  geom_vline(xintercept = region_comparison$Quarter[grepl(" Q1$", region_comparison$Quarter)],
+             color = "gray70", linetype = "dashed", size = 0.5) +
+  labs(
+    title = "Holiday Visit Trends by Quarter (2000-2022)",
+    x = "Quarter",
+    y = "Trips"
+  ) +
+  facet_wrap(~Region, scales = "free_y", ncol = 1) +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set2")
+
+
+ggplotly(region_comparison_plot)
+
+
+```
+
+
+@fig-10 depicts the temporal trend for holiday visits across the observed regions over the last two decades (2000-2022). Over the years, Devonport and Manly appear to exhibit substantial fluctuations in holiday visits, with Devonport reaching its peak in holiday visits in 2008 and 2018, and Manly experiencing its highest numbers during the first quarters of 2015 and 2017. In the case of Devonport, the data indicates that the highest peaks for holiday visits predominantly occur during the first quarters of each year. In contrast, for Manly, these peaks seem to vary, alternating between Quarters 1, 3, and 4.
+
+Conversely, the fluctuations observed in Whyalla are relatively less pronounced. The data suggests a significant upward trend in holiday visits from 2000 to 2003, with a notable peak of approximately 14,000 visits in the third quarter of 2003. However, there was a subsequent decline in 2004, followed by a resurgence in 2006. Similar to Manly, Whyalla does not exhibit a specific quarter that consistently experiences peaks, with fluctuations occurring intermittently. For instance, in 2017, the highest peak was observed during Quarter 1, while in 2019, it occurred during Quarter 3. It should also be noted that the highest number of holiday trips in Whyalla was recorded during those years (i.e. 2017 and 2019).
+
+
+### Ecotourism
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+#SA2_regions <- st_read(here::here("data/SA2_2021_AUST_SHP_GDA2020/SA2_2021_AU#ST_GDA2020.shp")) %>% 
+#  ms_simplify(keep = 0.1) %>% 
+#  st_transform(crs = st_crs("WGS84")) %>% 
+#  st_make_valid() %>% 
+#  select(STE_NAME21, SA2_NAME21, SA2_CODE21, geometry) %>% 
+#  rename("state" = STE_NAME21,
+#         "region" = SA2_NAME21,
+#         "sa2_code21" = SA2_CODE21)
+
+```
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+sepia_sf <- sepia_new %>% 
+  select(-c(dataResourceName , recordID,scientificName,taxonConceptID, basisOfRecord, recordedBy, recordedByID)) %>% 
+  st_as_sf(coords = c("decimalLongitude", "decimalLatitude"),
+  crs = st_crs("WGS84"))
+
+merged_sepia_sf <-
+  st_join(SA2_regions, sepia_sf, left = TRUE) %>%  
+  filter(!is.na(region))
+
+sepia_region <- left_join(SA2_regions %>% select(region, geometry, state),
+  merged_sepia_sf %>% 
+    as_tibble() %>% 
+    group_by(region) %>% 
+    summarise(sighting = n()),
+  by = c("region" = "region")
+)
+
+sepia_region <- sepia_region %>% 
+  mutate(centroid = st_centroid(geometry))
+
+sepia_region <- sepia_region %>%
+  mutate(lat = st_coordinates(centroid)[, 2],
+         long = st_coordinates(centroid)[, 1])
+
+```
+
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+sepia_new <- sepia_new %>%
+  mutate(Region = case_when(
+    between(decimalLatitude, -33.0346 - 1, -33.0346 + 1) & 
+      between(decimalLongitude, 137.5756 - 1, 137.5756 + 1) ~ "Whyalla",
+    between(decimalLatitude, -41.1801 - 1, -41.1801 + 1) & 
+      between(decimalLongitude, 146.3503 - 1, 146.3503 + 1) ~ "Devenport",
+    between(decimalLatitude, -33.7969 - 1, -33.7969 + 1) & 
+      between(decimalLongitude, 151.2850 - 1, 151.2850 + 1) ~ "Manly",
+    TRUE ~ "Others"
+  ))
+
+```
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+sepia_new <- sepia_new %>% 
+  mutate(year = lubridate::year(eventDate),
+         month = lubridate::month(eventDate))
+
+sepia_count <- sepia_new %>% 
+  group_by(month, Region) %>%
+  summarise(count = n()) %>%
+  filter(Region != "Others") %>% 
+  pivot_wider(names_from = Region, values_from = count) %>%
+  ungroup() %>% 
+  rename(Month = month) %>%
+  mutate(Month = month.name[as.numeric(Month)])
+
+DT::datatable(sepia_count, 
+  options = list(ordering = TRUE),
+  caption = "Giant Cuttlefish Sightings by Month (1980-2021)")
+
+```
+
+
+The table above presents monthly Giant Cuttlefish sightings across our three regions of interest: Manly, Whyalla, and Devenport. Interestingly, Manly exhibited the highest number of sightings over the entire period (i.e. 1980-2021), surpassing those of areas near Whyalla and Devenport. 
+
+The data also highlights a consistent peak in sightings between March and July, coinciding with the species' breeding season which typically spans from April to September. For instance, during March, Manly reported a total of 41 sightings, while Whyalla documented 65 sightings in April, indicating substantial seasonal activity in both regions. In contrast, fewer sightings are recorded during November to January. This underscores the relationship between breeding activity and the observed sighting patterns, emphasizing the seasonal influence on Giant Cuttlefishes' behavior.
+
+Upon comparing the Giant Cuttlefish sightings data with our prior tourism analysis, notable disparities emerge. Despite Manly exhibiting the highest number of Giant Cuttlefish sightings among the three regions, the findings do not align precisely with the tourism data. Although Manly recorded a peak in Giant Cuttlefish sightings during March to June, the corresponding tourism analysis from (@fig-9) indicates a drop in holiday visitors during this period, with the peak occurring in Quarter 1 instead.
+
+Similarly, while the tourism data from @fig-9 suggests that Whyalla had the lowest number of holiday visitors in Quarter 2, with a subsequent increase in Quarter 3, the sightings data reveals higher Giant Cuttlefish sightings between April and July. These inconsistencies suggest that tourists may be more inclined to visit the regions, particularly Whyalla, during the middle of the Giant Cuttlefish breeding season instead, anticipating a higher likelihood of observing these marine creatures.
+
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+#| label: fig-11
+#| fig-cap: Bar plot illustrating the annual variations in Giant Cuttlefish sightings (1980-2021) in areas near Devenport, Manly and Whyalla. 
+
+sepia_count <- sepia_new %>% 
+  group_by(year, Region) %>%
+  summarise(Sightings = n()) %>%
+  filter(Region %in% c("Devenport", "Whyalla", "Manly"))
+
+sepia_yearly_regions_plot <- ggplot(sepia_count, aes(x = year, 
+                        y = Sightings,
+                        fill = Region,
+                        text = paste("Year:", year, 
+                                                "<br>",
+                                     "Sightings:", Sightings))) +
+  geom_bar(stat = "identity") +
+  labs(
+    x = "Year",
+    y = "Number of sightings",
+    title = "Yearly Giant Cuttlefish Sightings (1980-2021)",
+    fill = "Region"
+  ) +
+  scale_fill_manual(values = brewer.pal(3, "Set2")) +  
+  facet_wrap(~ Region, scales = "free_y", nrow = 3) +
+  theme_minimal()
+
+ggplotly(sepia_yearly_regions_plot, tooltip = "text")
+
+```
+
+@fig-11 displays the total annual Giant Cuttlefish sightings in the vicinity of Devenport, Manly, and Whyalla between 1980 and 2021. From the bar graph, we can see that the data exhibits notable gaps, indicating the limitations of the available sightings data which hinders the comprehensive analysis of any meaningful temporal trends.
+
+For areas near Devonport, the sightings data indicates sporadic Giant Cuttlefish sightings between 1980 and 1995, with consistently low counts ranging from 1 to 5 sightings per year, apart from a peak of 9 sightings in 2010. Subsequent to 2010, the sightings decreased, remaining at 5 or below annually. Contrary to this pattern, the tourism data, as demonstrated in @fig-8, portrays Devonport as having the highest number of holiday visitors throughout the years. This suggests that the region's appeal for tourists may extend beyond the specific interest in viewing Giant Cuttlefishes, indicating the presence of additional attractions or activities drawing visitors to the area. 
+
+On the other hand, Manly exhibited minimal sightings in the earlier years, with a noticeable surge observed from the late 2000s, peaking at 78 sightings in 2012. Subsequently however, sightings sharply declined to only two in 2013, persisting at a low level through 2021. This trend contrasts with the analysis of tourism data as depicted in @fig-8, which suggests a decline in holiday visitors in 2012, followed by a subsequent increase in 2013. This disparity indicates a possible divergence between the motivations driving tourism and the patterns observed in Giant Cuttlefish sightings, suggesting that factors other than the presence of Giant Cuttlefishes may also influence tourism trends in the Manly region.
+
+As for Whyalla, the data reveals sporadic sightings over the years, with a significant peak of 64 sightings in 2001, followed by a substantial gap until 2014, when 25 sightings were recorded. Despite its reputation as a prime tourism destination for observing Giant Cuttlefish up close, the limited sightings data for Whyalla does not entirely support this prevalent perception. Furthermore, as indicated in @fig-8, the decline in holiday visitors in Whyalla during 2001 followed by a subsequent increase in 2003 suggests a potential mismatch between the expected tourist behavior and the observed patterns in Giant Cuttlefish sightings. This incongruity may point towards the influence of various other factors on tourism trends in Whyalla.
+
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+#| label: fig-12
+#| fig-cap: Monthly Giant Cuttlefish sightings by region in Devenport, Whyalla, and Manly from 1980 to 2021.
+
+sepia_count <- sepia_new %>% 
+  group_by(year, month, Region) %>%
+  summarise(Sightings = n()) %>%
+  filter(Region %in% c("Devenport", "Whyalla", "Manly")) %>% 
+  mutate(month = factor(month.abb[as.numeric(month)], levels = month.abb),
+         Sightings = round(Sightings)) %>%
+  ungroup()
+
+
+sightings_year_plot <- ggplot(sepia_count, aes(x = month,
+                        y = Sightings,
+                        fill = Region)) +
+  facet_wrap(~ year, scales = "free_y") +
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_fill_manual(values = brewer.pal(3, "Set2")) +
+  labs(
+    x = "Month",
+    y = "Number of Sightings",
+    title = "Monthly Giant Cuttlefish Sightings by Region"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(hjust = 1)) +
+  scale_x_discrete(breaks = c("Jan", "Apr", "Jul", "Oct"), 
+                   labels = c("Jan", "Apr", "Jul", "Oct"))
+
+ggplotly(sightings_year_plot)
+
+```
+
+Upon examining the monthly data portrayed in @fig-12, there appears to be some seasonal variations in Giant Cuttlefish sightings in the three observed regions. However, it is important to note that our temporal analysis is constrained by the limited availability of sightings data, allowing us to only discern months with a higher frequency of reported Giant Cuttlefish sightings.
+
+In the vicinity of Devenport, the data highlights a surge in sightings during April, exemplified by occurrences such as 4 sightings in 2006. Sightings were also high in September (i.e. 9 sightings in 2010) and October (i.e. 5 sightings in 1995). However, a conspicuous gap is noticeable, where sightings of Giant Cuttlefish are scarcely reported between 2015 and 2020. According to @fig-10 however, the data on holiday trips to Devonport did not demonstrate a corresponding pattern to the observed fluctuations in Giant Cuttlefish sightings. Despite the scarcity of reported sightings between 2015 and 2020, there were sustained increases in holiday trips to Devonport during this period, culminating in a notable peak in the first quarter of 2018. In contrast, the third quarter of 2010 saw the lowest recorded holiday trips in Devonport, estimated at approximately 1000. This incongruity implies that the trends in tourism may not be solely reliant on the appeal of Giant Cuttlefish sightings in the area, indicating the potential influence of other factors contributing to the tourism patterns observed in Devonport.
+
+Conversely, for the Manly region, reported sightings appear relatively more consistent compared to the Devenport area, spanning across numerous years. An apparent trend reveals a higher frequency of sightings during the second and third quarters of the year, notably from March to July. Particularly notable is the surge in sightings during those months, especially from 2011 to 2012, with March and May marking the peak sightings. This trend aligns with the breeding season of the Giant Cuttlefish, where they start to congregate for breeding in mid-May, as well as in June and July when the breeding season is in full swing. Similarly to Devonport, the data from @fig-10 indicates a decline in holiday trips to Manly between 2011 and 2013, despite the increased sightings of Giant Cuttlefish during this period. For instance, holiday trips in Manly reduced from 27,000 trips in the first quarter of 2011 to approximately 10,000 trips in the third quarter of the same year, maintaining a relatively low count throughout 2012 until the third quarter. 
+
+Surprisingly, the Whyalla region displays the most erratic pattern among the three regions, implying a possible discrepancy between the region's status as a popular tourist destination for snorkeling with Giant Cuttlefishes and the reporting of sightings. Yet, the data indicates that in years with recorded sightings, they are primarily concentrated within the breeding season months as well. For instance, in 1997, 6 sightings were reported in June, while in 2001, a significant surge of 64 sightings occurred in April alone. Similarly, 2014 recorded a total of 23 sightings in July, aligning with the peak spawning period of the Giant Cuttlefish. Based on our previous analysis of the temporal trends in holiday visits to Whyalla, it appears that there may be an association between reported Giant Cuttlefish sightings and the corresponding patterns in holiday visits to Whyalla. As depicted in @fig-10, there were significant surges in holiday trips, particularly in Quarter 2 of 2001, with a substantial increase from 0 to approximately 4000, and in Quarter 3 of 2014, where holiday trips rose from around 1000 in the previous quarter to nearly 9000. These distinct increases in tourism activity suggest that tourists are likely drawn to Whyalla to witness the Giant Cuttlefishes during the peak breeding season.
+
+The increase in Whyalla's sightings between 1997 and 2001 may also be linked to the effects of the renewable seasonal moratorium imposed on Giant Cuttlefish harvesting in the Point Lowly region, which ultimately became a year-round closure three years later [@woodcock2014regional]. However, the subsequent drop in sightings may also be due to a combination of natural variability and possible illegal fishing activities during the peak breeding period. Moreover, underreporting by tourists to the Atlas of Living Australia might have contributed to this decline, rendering the data incomplete.
+
+Overall, @fig-12 indicates that the majority of Giant Cuttlefish sightings are concentrated around the second and third quarters of the year, closely aligning with its breeding season. These patterns underscore the significance of understanding the species' reproductive behaviors and the need for continued conservation efforts to ensure the sustainability of Giant Cuttlefish populations in these regions. Additionally, the incongruity between our tourism analysis and sightings data (except for Whyalla) suggests that factors other than the seasonal presence of Giant Cuttlefish may significantly influence tourism patterns in the observed regions, and the sightings data does not sufficiently conclude there is ecotourist interest in Giant Cuttlefishes.
+
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+#| label: fig-13
+#| fig-cap: Total Giant Cuttlefish sightings by state from 1980 to 2021. 
+
+sepia_states_fullcount <- sepia_region %>%
+  group_by(state) %>% 
+  summarise(count = n())
+
+state_plot <- ggplot(sepia_states_fullcount, 
+                     aes(x = reorder(state, count), 
+                         y = count, 
+                         fill = state, 
+                         text = paste("State: ", state, "<br>", 
+                                      "Sightings: ", count))) +
+  geom_bar(stat = "identity") +
+  labs(title = "Total Giant Cuttlefish Sightings by State (1980-2021)",
+       x = "State",
+       y = "Number of Sightings",
+       fill = "State") +
+  theme_minimal() +
+  coord_flip() +
+  scale_fill_viridis_d()
+
+ggplotly(state_plot, tooltip = "text")
+
+```
+
+According to @fig-13, New South Wales exhibits the highest number of Giant Cuttlefish sightings, totaling approximately 642 from 1980 to 2021. This suggests that the state has been a significant habitat for these creatures over the observed period. Following this, Queensland ranks second with a total of 546 recorded sightings while Victoria portrays a substantial 522 occurrences, indicating that both these states also serve as regions conducive to Giant Cuttlefish habitation.
+
+On the other hand, Tasmania and the Northern Territory exhibit relatively lower sightings, with less than 100 recorded sightings over the years. This infers that these regions might have fewer habitats suitable for Giant Cuttlefish, potentially due to ecological or environmental factors.
+
+On the whole, the data implies that for tourists interested in observing Giant Cuttlefishes, focusing on specific regions within New South Wales, Queensland, and Victoria would likely yield higher chances of sightings. Further investigation into the ecological characteristics of these regions could provide insights into the factors driving the variances in Giant Cuttlefish populations among Australian states.
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+sepia_state_count <- sepia_region %>%
+  filter(sighting > 1) %>%
+  select(region, state, sighting) 
+
+DT::datatable(sepia_state_count, 
+             options = list(ordering = TRUE),
+             caption = "Total Giant Cuttlefish Sightings by Region (1980-2021)")
+
+```
+
+The above table illustrates the total Giant Cuttlefish sightings across specific regions in Australia during the observed period. By arranging the data from the highest to lowest sightings, it becomes evident that Fairlight Beach in Manly, New South Wales, has the highest recorded occurrences. This finding is consistent with the common knowledge that sightings of Giant Cuttlefishes off Sydney’s northern beaches are frequent [@patterson2016divers]. Additionally, other regions such as Franklin Harbour in South Australia and Triabunna in Tasmania also demonstrate notable occurrences of Giant Cuttlefish.
+
+The abundance of sightings in these regions can be attributed to specific environmental factors. For instance, thousands of Giant Cuttlefishes are known to migrate to the coastline of the Upper Spencer Gulf Marine Park, close to Franklin Harbour, for spawning purposes [@npwsaupper]. The warm waters in this area provide an ideal breeding environment for Giant Cuttlefishes. This information suggests that certain geographical locations, with their unique ecological characteristics, are conducive to the thriving populations of Giant Cuttlefish, thus contributing to the regional disparities in sightings across Australia.
+
+
+#### Visual Inference Test  
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+#| label: fig-14
+#| fig.cap: "Monthly Giant Cuttlefish sightings in Manly, New South Wales (2012)" 
+
+all_months <- data.frame(month = 1:12)
+
+sepia_month <- sepia_new %>%
+  filter(Region == "Manly",
+         year == "2012") %>%
+  mutate(month = month(eventDate)) %>% 
+  group_by(month) %>%
+  summarise(Sightings=n()) %>% 
+  right_join(all_months, by = "month") %>%
+  mutate(Sightings = ifelse(is.na(Sightings), 0, Sightings))
+
+  
+p1 <- sepia_month %>% 
+  ggplot() +
+  geom_col(aes(x=month, y=Sightings),
+           fill = "lightblue") +
+  labs(x = "Month", y = "The number of Sightings",
+       title = "Monthly Giant Cuttlefish Sightings in Manly (2012)") +
+  scale_x_discrete(limits = 1:12, labels = month) +
+  theme_bw()
+
+ggplotly(p1)
+
+```
+
+As illustrated in @fig-12, the region of Manly experienced a substantial increase in Giant Cuttlefish sightings during 2012, prompting a deeper investigation. Our objective is to conduct a detailed analysis of the monthly distribution of these sightings and gain a more comprehensive understanding of the temporal patterns in Giant Cuttlefish sightings.
+
+@fig-14 portrays the distribution of monthly Giant Cuttlefish occurrences in Manly for the year 2012. The data exhibits a noticeable trend, with majority of the sightings being within the months of March and June, coinciding with its breeding season. However, due to the relatively limited amount of sightings data available, establishing a definitive pattern remains a challenge.
+
+In order to further examine the pattern of sightings in Manly during 2012, we can perform a visual test.
+
+$H_0$: There is no discernible monthly pattern evident in the 2012 Giant Cuttlefish sightings.
+
+
+```{r, warning = FALSE, echo = FALSE}
+#| label: fig-15
+#| fig-cap: "Visual Inference for Monthly Pattern to the 2012 Sighting Event"
+
+set.seed(2023)
+
+ggplot(lineup(null_permute("month"), 
+              true = sepia_month), 
+         aes(x = month, 
+             y = Sightings)) +
+  geom_col(fill = "lightblue") +
+  theme_bw() +
+  labs(x = "Month", y = "The number of sightings") +
+  scale_x_discrete(limits = 1:12, labels = month) +
+  facet_wrap(~.sample) + 
+  theme(axis.text = element_blank(),
+        axis.title = element_blank(),
+        legend.position = "none") 
+
+```
+
+
+The null samples in @fig-15 are generated using the `null_permute()` function from the `nullabor` package. Assuming the null hypothesis to be true, this function produces 19 simulated datasets by randomly permuting the `month` variable without replacement. Consequently, it disrupts the inherent association between months and sightings, allowing for an evaluation of the validity of the month pattern in the null plot.
+
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+pval <- nullabor::pvisual(8, 10, 20)
+
+pval
+
+```
+
+After surveying 10 different people to identify the most distinct plot within @fig-15, a majority of 8 out of 10 individuals successfully pinpointed the null plot. As a result, the calculated p-value here is `r pval[3]`. 
+
+Consequently, in this scenario, we can say that we have sufficient evidence to reject the null hypothesis, which originally suggests the absence of a significant monthly pattern in the 2012 Giant Cuttlefish sighting events. Therefore, we can infer that there is a statistically significant monthly pattern in the 2012 Giant Cuttlefish sightings in Manly, providing strong evidence supporting the existence of temporal trends in the sightings data. This analysis further solidifies the notion that Giant Cuttlefish sightings are more prevalent during their breeding season, emphasizing the influence of seasonal factors on the sighting patterns. 
+
+
+## Summary 
+
+In conclusion, our study entailed a comprehensive temporal analysis of tourism data within three regions renowned for their abundant Giant Cuttlefish sightings: Whyalla, Manly, and Devonport. Our primary focus encompassed not only the exploration of tourism patterns across these regions, but also an investigation into whether the occurrences of Giant Cuttlefishes correlates with the influx of tourists in each of these areas. Key findings from our investigation include:
+
+- **Quarterly Tourism Trends:** The peak in holiday tourism in Devonport primarily occurs in the first quarter of each year. Conversely, for Manly, it alternates between the first, third, and fourth quarters throughout the observed period. Unlike the other regions, Whyalla exhibits irregular fluctuations rather than consistent peaks in specific quarters.
+
+- **COVID-19 Impact on Tourism:** There is a significant decline in trip numbers across all three regions in 2020 and 2021, highlighting the profound impact of the COVID-19 pandemic on the Australian travel industry. However, there has been a noticeable resurgence in trip numbers for Devonport and Manly in 2022, indicating signs of recovery for these regions’ travel sectors.
+
+- **Travel Preferences:** In terms of holidays, it's evident that among the three areas, Devonport is the most appealing to holidaymakers. For visiting purposes, Manly attracts a significantly larger number of visitors than the other two areas, possibly due to Manly's relatively large residential population. In the Whyalla area, overall, business trips surpass trips for any other purpose, likely because Whyalla is primarily known for its industrial and economic activities rather than its tourism.
+
+- **Potential Ecotourism Trends in Whyalla:**. There appears to be a correlation between the reported Giant Cuttlefish sightings and holiday excursions to Whyalla. Most Giant Cuttlefish sightings occur in the second and third quarters, aligning with the species' breeding season. Simultaneously, the surge in holiday tourism during these quarters indicates that tourists are most likely drawn to Whyalla to witness the congregation of Giant Cuttlefishes during their peak breeding season.
+
+- **Limited Ecotourism Impact in Manly and Devonport:** Our analysis demonstrates a heightened frequency of Giant Cuttlefish sightings during the second and third quarters, predominantly from March to July. Surprisingly, the tourism data indicates a decrease in holiday visitors during this period for Devonport and Manly, with the majority of holiday visits peaking in Quarter 1, especially for Devonport. Additionally, while Giant Cuttlefish sightings remain generally low in Devonport, the consistent popularity of the region among holidaymakers suggests that the region's appeal transcends the scope of Giant Cuttlefish viewing.
+
+- **Optimal Giant Cuttlefish Viewing in NSW:** New South Wales boasts the highest record of Giant Cuttlefish sightings, solidifying its status as a prominent habitat for these remarkable creatures. Following closely behind are Queensland and Victoria. This implies that tourists keen on seeing Giant Cuttlefishes should prioritize exploring specific regions within these states to maximize their chances of sightings.
